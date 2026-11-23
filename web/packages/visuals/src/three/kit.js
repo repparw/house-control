@@ -106,13 +106,13 @@ function planks(base) {
 
 function tiles(base, perSide, grout) {
   return canvasTexture(512, (g, s) => {
-    const rand = rng(perSide * 31 + base.charCodeAt(2));
+    const rand = rng(perSide * 31 + (Array.isArray(base) ? base[0] : base).charCodeAt(2));
     const t = s / perSide;
     g.fillStyle = grout;
     g.fillRect(0, 0, s, s);
     for (let i = 0; i < perSide; i++) {
       for (let j = 0; j < perSide; j++) {
-        g.fillStyle = shade(base, (rand() - 0.5) * 0.05);
+        g.fillStyle = shade(Array.isArray(base) ? base[j % base.length] : base, (rand() - 0.5) * 0.05);
         g.fillRect(i * t + 2, j * t + 2, t - 4, t - 4);
       }
     }
@@ -123,6 +123,8 @@ const FLOORS = {
   oak: () => planks('#c7a47c'),
   walnut: () => planks('#94705a'),
   tile: () => tiles('#d5dade', 4, '#aab0b8'),
+  stripedTile: () => tiles(['#777e70', '#dad4bc'], 6, '#9f9e90'),
+  terracottaTile: () => tiles(['#a36a54', '#98604e', '#ac735d'], 6, '#77584b'),
   stone: () => tiles('#a2a7ae', 3, '#7c828b'),
 };
 

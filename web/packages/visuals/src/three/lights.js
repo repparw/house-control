@@ -66,10 +66,11 @@ function point(intensity, y, { shadow = true, distance = 0, x = 0, z = 0 } = {})
 // Each fixture: { parts: Mesh[], glow: Mesh[] (emissive when on), lights: Light[], hit: [w, h, d, y] }
 const fixtures = {
   ceiling(cfg, H) {
+    const radius = cfg.radius ?? 0.27;
     const y = cfg.y ?? H - 0.14;
     return {
       parts: [at(cyl(0.012, 0.012, H - y - 0.05, mat(DARK), 8), 0, y + 0.05, 0)],
-      glow: [at(cyl(0.27, 0.27, 0.055, glowMaterial(), 40), 0, y, 0)],
+      glow: [at(cyl(radius, radius, 0.055, glowMaterial(), 40), 0, y, 0)],
       lights: [spot(cfg.intensity ?? 20, y - 0.02)],
       hit: [0.75, 0.5, 0.75, y],
     };
@@ -124,6 +125,22 @@ const fixtures = {
       glow: [at(cyl(0.085, 0.125, 0.17, glowMaterial(), 28), 0, y + 0.18, 0)],
       lights: [point(cfg.intensity ?? 1.5, y + 0.3)],
       hit: [0.5, 0.6, 0.5, y + 0.2],
+    };
+  },
+
+  bulkhead(cfg) {
+    const y = cfg.y ?? 1.92;
+    const base = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), mat('#73787e'));
+    base.scale.set(0.115, 0.069, 0.036);
+    base.position.set(0, y, 0);
+    const lens = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), glowMaterial());
+    lens.scale.set(0.094, 0.052, 0.025);
+    lens.position.set(0, y, 0.026);
+    return {
+      parts: [base],
+      glow: [lens],
+      lights: [point(cfg.intensity ?? 1.6, y, { shadow: false, distance: 3.2, z: 0.065 })],
+      hit: [0.38, 0.28, 0.23, y],
     };
   },
 

@@ -83,7 +83,12 @@ export function buildHouse(config, level = config.levels[0]) {
 
   if (level.elevation === 0) {
     // Plinth the model stands on.
-    const plinth = box(maxX - minX + 0.7, 0.3, maxZ - minZ + 0.7, mat('#141927', { rough: 0.9 }), { r: 0.12 });
+    // Separate the plinth from floor finishes in a low-precision depth buffer at oblique angles.
+    const baseMaterial = mat("#141927", { rough: 0.9 }).clone();
+    baseMaterial.polygonOffset = true;
+    baseMaterial.polygonOffsetFactor = 1;
+    baseMaterial.polygonOffsetUnits = 4;
+    const plinth = box(maxX - minX + 0.7, 0.3, maxZ - minZ + 0.7, baseMaterial, { r: 0.12 });
     at(plinth, (minX + maxX) / 2, -0.305, (minZ + maxZ) / 2);
     plinth.receiveShadow = true;
     group.add(plinth);
@@ -112,6 +117,7 @@ export function buildHouse(config, level = config.levels[0]) {
     color: '#9cc0ff', roughness: 0.08, transparent: true, opacity: 0.22,
     emissive: '#3d5fae', emissiveIntensity: 0.5,
   });
+  const frostedGlass = mat('#e0e9e8', { rough: 0.75 });
   const frame = mat('#2c3142', { rough: 0.6 });
 
   // A wall piece running from a..b along its axis, between heights y0..y1.
@@ -152,18 +158,24 @@ export function buildHouse(config, level = config.levels[0]) {
       if (type !== 'door') piece(s, a, b, 0, CURB, t, wallMats, side.curb);
       parent = side.tall;
     }
-    if (type === 'door' || type === 'open') continue;
-
     const height = exterior ? H : Hi;
+    if (type === 'door') {
+      const head = s.opening.head;
+      if (Number.isFinite(head) && head > 0 && head < height) {
+        piece(s, a, b, head, height, t, wallMats, parent);
+      }
+      continue;
+    }
+    if (type === 'open') continue;
     if (type === 'window' && exterior) {
       const { sill, head } = s.opening;
       piece(s, a, b, 0, sill, t, wallMats, parent);
       piece(s, a, b, Math.min(head, H), H, t, wallMats, parent);
-      const pane = piece(s, a, b, sill, head, 0.03, glass, parent);
+      const pane = piece(s, a, b, sill, head, 0.03, s.opening.frosted ? frostedGlass : glass, parent);
       pane.castShadow = false;
       const fw = 0.05;
       const bars = [[a, a + fw, sill, head], [b - fw, b, sill, head], [a, b, sill, sill + fw], [a, b, head - fw, head]];
-      if (b - a > 1.2) bars.push([(a + b) / 2 - fw / 2, (a + b) / 2 + fw / 2, sill, head]);
+      if (s.opening.panes === 2 || b - a > 1.2) bars.push([(a + b) / 2 - fw / 2, (a + b) / 2 + fw / 2, sill, head]);
       for (const [fa, fb, y0, y1] of bars) piece(s, fa, fb, y0, y1, 0.07, frame, parent);
       continue;
     }

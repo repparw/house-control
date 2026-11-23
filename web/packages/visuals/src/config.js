@@ -1,7 +1,7 @@
 // Loads and normalises a floor plan ("home.json"). Everything the 3D scene and the UI
 // know about the apartment comes from this one document, so swapping the file swaps the home.
 
-const LIGHT_TYPES = ['ceiling', 'pendant', 'spots', 'floor', 'table', 'strip'];
+const LIGHT_TYPES = ['ceiling', 'pendant', 'spots', 'floor', 'table', 'strip', 'bulkhead'];
 const WALLS = ['north', 'south', 'east', 'west'];
 
 export class ConfigError extends Error {}
@@ -28,7 +28,7 @@ export const SERVICES = {
   hue: { name: 'Philips Hue', short: 'Hue' },
   homekit: { name: 'Apple Home', short: 'Apple Home' },
 };
-export const FLOOR_KINDS = ['oak', 'walnut', 'tile', 'stone'];
+export const FLOOR_KINDS = ['oak', 'walnut', 'tile', 'stone', 'stripedTile', 'terracottaTile'];
 
 // A home on several floors lists them in "levels", lowest first: [{ id, name, wallHeight? }].
 // Rooms, furniture and openings say which one they are on with "level"; lamps and ACs are on
@@ -89,7 +89,7 @@ export function normalize(raw) {
   const openings = (raw.openings || []).map((o, i) => {
     need(isPoint(o.from) && isPoint(o.to), `Opening #${i + 1} needs "from" and "to" points`);
     need(o.from[0] === o.to[0] || o.from[1] === o.to[1], `Opening #${i + 1} must be axis-aligned`);
-    return { type: o.type || 'door', from: o.from, to: o.to, sill: o.sill ?? 0.85, head: o.head ?? 2.1, level: levelOf(o, `Opening #${i + 1}`) };
+    return { type: o.type || 'door', from: o.from, to: o.to, sill: o.sill ?? 0.85, head: o.head ?? (o.type === 'window' ? 2.1 : undefined), frosted: o.frosted, panes: o.panes, level: levelOf(o, `Opening #${i + 1}`) };
   });
 
   const lights = (raw.lights || []).map((l) => {
