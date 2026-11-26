@@ -75,6 +75,22 @@ function doorLines(width, height, y, z, count, material) {
   return out;
 }
 
+export const FURNITURE_VARIANTS = {
+  tv: ['console', 'wall'],
+  vanity: ['cabinet', 'pedestal'],
+  coffeeTable: ['modern', 'woodShelf'],
+  sofa: ['pillowed', 'plain'],
+  toilet: ['tank', 'concealed'],
+};
+
+const WALL_MOUNTED_TYPES = new Set(['wallShelf', 'showerHead', 'towelRail', 'showerCurtain']);
+
+export function isWallMounted(item) {
+  if (!item) return false;
+  if (item.type === 'tv') return item.variant ? item.variant === 'wall' : item.wallMounted === true;
+  return WALL_MOUNTED_TYPES.has(item.type);
+}
+
 const builders = {
   rug({ size = [2, 1.4], color = '#3b4a66' }) {
     const g = group(
@@ -85,9 +101,10 @@ const builders = {
     return g;
   },
 
-  sofa({ width = 2.2, color = '#8b93a7', throwPillow = true }) {
+  sofa({ width = 2.2, color = '#8b93a7', variant, throwPillow }) {
     const g = seating(width, 0.95, color, width > 2 ? 3 : 2);
-    if (throwPillow) {
+    const plain = variant ? variant === 'plain' : throwPillow === false;
+    if (!plain) {
       const pillow = at(box(0.36, 0.36, 0.12, mat('#d9b98a', { rough: 1 }), { r: 0.05 }), -width / 2 + 0.42, 0.46, -0.1);
       pillow.rotation.set(-0.25, 0.3, 0.1);
       g.add(pillow);
@@ -95,14 +112,21 @@ const builders = {
     return g;
   },
 
+  pillow({ width = 0.38, color = '#d9b98a' }) {
+    const cushion = at(box(width, width * 0.92, 0.12, mat(color, { rough: 1 }), { r: 0.05 }), 0, 0.01, 0);
+    cushion.rotation.set(-0.2, 0.12, 0.04);
+    return group(cushion);
+  },
+
   armchair({ color = '#c28a5a' }) {
     return seating(0.92, 0.88, color, 1);
   },
 
-  coffeeTable({ width = 1.1, depth = 0.58, height = 0.4, color = WOOD, woodShelf = false }) {
+  coffeeTable({ width = 1.1, depth = 0.58, height = 0.4, color = WOOD, variant, woodShelf = false }) {
     const wood = mat(color, { rough: 0.58 });
     const apron = mat(darker(color, 0.88), { rough: 0.65 });
-    if (woodShelf) {
+    const shelfStyle = variant ? variant === 'woodShelf' : Boolean(woodShelf);
+    if (shelfStyle) {
       const legH = height - 0.03;
       const legW = 0.036;
       const inset = 0.032;
@@ -117,20 +141,22 @@ const builders = {
         ...sqLegs,
       );
     }
+    const topY = Math.max(0.16, height - 0.04);
     return group(
-      at(box(width, 0.04, 0.58, wood, { r: 0.015 }), 0, 0.36, 0),
-      at(box(width - 0.16, 0.02, 0.44, mat(BLACK, { rough: 0.5 }), { r: 0.008 }), 0, 0.14, 0),
-      ...legs(width, 0.58, 0.36, mat(BLACK, { rough: 0.5 }), 0.07, 0.015),
-      at(box(0.24, 0.035, 0.17, mat('#c9553f', { rough: 0.9 }), { r: 0.006 }), 0.22, 0.4, 0.05),
-      at(cyl(0.05, 0.04, 0.09, mat(WHITE, { rough: 0.4 })), -0.3, 0.4, -0.08),
+      at(box(width, 0.04, depth, wood, { r: 0.015 }), 0, topY, 0),
+      at(box(width - 0.16, 0.02, Math.max(0.16, depth - 0.14), mat(BLACK, { rough: 0.5 }), { r: 0.008 }), 0, Math.min(0.14, topY * 0.4), 0),
+      ...legs(width, depth, topY, mat(BLACK, { rough: 0.5 }), 0.07, 0.015),
+      at(box(0.24, 0.035, 0.17, mat('#c9553f', { rough: 0.9 }), { r: 0.006 }), 0.22, topY + 0.04, 0.05),
+      at(cyl(0.05, 0.04, 0.09, mat(WHITE, { rough: 0.4 })), -0.3, topY + 0.04, -0.08),
     );
   },
 
-  tv({ width = 1.7, wallMounted = false }) {
+  tv({ width = 1.7, variant, wallMounted = false }) {
+    const wall = variant ? variant === 'wall' : Boolean(wallMounted);
     const sw = width * 0.84;
     const sh = sw * 0.5625;
     const screen = new THREE.MeshBasicMaterial({ color: '#0d1320', toneMapped: false });
-    if (wallMounted) {
+    if (wall) {
       const screenHeight = width * 0.5625;
       const bezel = 0.012;
       return group(
@@ -151,78 +177,129 @@ const builders = {
     );
   },
 
-  ovenStand({ width = 0.62, depth = 0.44, height = 0.94 }) {
-    const white = mat(WHITE, { rough: 0.65 });
-    const recess = mat('#dad6ce', { rough: 0.75 });
+  cabinet({ width = 0.62, depth = 0.44, height = 0.94, color = WHITE, cubby = true }) {
+    const body = mat(color, { rough: 0.65 });
+    const toeKick = mat(color === WHITE ? '#d2cfc7' : darker(color, 0.88), { rough: 0.75 });
+    const recess = mat(color === WHITE ? '#dad6ce' : darker(color, 0.92), { rough: 0.75 });
+    const seam = mat(color === WHITE ? '#b6b4b0' : darker(color, 0.75));
     const steel = mat('#b4b7bc', { metal: 0.55, rough: 0.35 });
-    const dark = mat('#22242a', { rough: 0.45 });
-    const glassDoor = mat('#14171e', { rough: 0.15, metal: 0.2 });
-    const cubby = 0.23;
-    const baseH = height - cubby;
-    const ovenWidth = width - 0.08;
-    const ovenDepth = depth - 0.06;
-    const ovenY = height + 0.012;
-    const ovenFeet = legs(ovenWidth, ovenDepth, 0.012, dark, 0.04, 0.012);
-    for (const f of ovenFeet) f.position.y = height;
-    const dials = [0.075, 0.155, 0.235].map((y) =>
-      at(rodZ(0.017, 0.019, 0.02, dark, 14), ovenWidth / 2 - 0.038, ovenY + y, ovenDepth / 2));
+    const topH = 0.026;
+    const cubbyH = cubby ? 0.23 : 0;
+    const baseH = cubby ? height - cubbyH : height - topH;
     return group(
-      // Lower cabinet with subtle toe-kick, doors, and bar pulls.
-      at(box(width - 0.02, 0.05, depth - 0.04, mat('#d2cfc7', { rough: 0.75 }), { r: 0 }), 0, 0, -0.01),
-      at(box(width, baseH - 0.05, depth, white, { r: 0.008 }), 0, 0.05, 0),
-      at(box(width + 0.01, 0.026, depth + 0.01, white, { r: 0.006 }), 0, height - 0.026, 0),
-      at(box(width - 0.03, cubby - 0.026, 0.018, recess, { r: 0 }), 0, baseH, -depth / 2 + 0.012),
-      ...[-1, 1].flatMap(side => [
-        at(box(0.023, cubby - 0.026, depth, white, { r: 0.004 }), side * (width / 2 - 0.0115), baseH, 0),
+      // Lower cabinet with subtle toe-kick, doors, bar pulls, optional open top cubby, and top counter.
+      at(box(width - 0.02, 0.05, depth - 0.04, toeKick, { r: 0 }), 0, 0, -0.01),
+      at(box(width, baseH - 0.05, depth, body, { r: 0.008 }), 0, 0.05, 0),
+      at(box(width + 0.01, topH, depth + 0.01, body, { r: 0.006 }), 0, height - topH, 0),
+      cubby && at(box(width - 0.03, cubbyH - topH, 0.018, recess, { r: 0 }), 0, baseH, -depth / 2 + 0.012),
+      ...[-1, 1].flatMap((side) => [
+        cubby && at(box(0.023, cubbyH - topH, depth, body, { r: 0.004 }), side * (width / 2 - 0.0115), baseH, 0),
         at(box(0.012, 0.14, 0.012, steel, { r: 0.004 }), side * 0.038, baseH - 0.21, depth / 2 + 0.02),
         at(box(0.01, 0.01, 0.018, steel, { r: 0 }), side * 0.038, baseH - 0.195, depth / 2 + 0.009),
         at(box(0.01, 0.01, 0.018, steel, { r: 0 }), side * 0.038, baseH - 0.09, depth / 2 + 0.009),
       ]),
-      ...doorLines(width, baseH - 0.09, 0.07, depth / 2 + 0.001, 2, mat('#b6b4b0')),
-      // Countertop electric oven with feet, glass door, tubular handle, and rotary dials.
-      ...ovenFeet,
-      at(box(ovenWidth, 0.32, ovenDepth, steel, { r: 0.012 }), 0, ovenY, 0),
-      at(box(ovenWidth - 0.12, 0.22, 0.012, dark, { r: 0.006 }), -0.036, ovenY + 0.045, ovenDepth / 2),
-      at(box(ovenWidth - 0.16, 0.15, 0.006, glassDoor, { r: 0.004 }), -0.036, ovenY + 0.072, ovenDepth / 2 + 0.007),
-      at(box(ovenWidth - 0.16, 0.014, 0.014, steel, { r: 0.005 }), -0.036, ovenY + 0.242, ovenDepth / 2 + 0.024),
-      ...[-1, 1].map((side) => at(box(0.012, 0.012, 0.02, steel, { r: 0 }), -0.036 + side * ((ovenWidth - 0.2) / 2), ovenY + 0.243, ovenDepth / 2 + 0.012)),
-      ...dials,
-      // Compact matte-dark air fryer resting on the oven top.
-      at(box(0.24, 0.25, 0.24, dark, { r: 0.045 }), 0, ovenY + 0.32, 0),
-      at(box(0.2, 0.006, 0.2, mat('#343740', { metal: 0.4, rough: 0.4 }), { r: 0.003 }), 0, ovenY + 0.568, 0),
-      at(box(0.21, 0.006, 0.006, steel, { r: 0 }), 0, ovenY + 0.45, 0.119),
-      at(box(0.028, 0.095, 0.018, steel, { r: 0.006 }), 0, ovenY + 0.35, 0.132),
-      ...[-0.03, 0.03].map((dy) => at(box(0.018, 0.014, 0.02, dark, { r: 0 }), 0, ovenY + 0.39 + dy, 0.12)),
+      ...doorLines(width, baseH - 0.09, 0.07, depth / 2 + 0.001, 2, seam),
     );
   },
 
-  coffeeShelf({ width = 0.66, depth = 0.28 }) {
-    const steel = mat('#c2c5ca', { metal: 0.58, rough: 0.32 });
-    const dark = mat('#26282e', { rough: 0.5 });
+  oven({ width = 0.54, depth = 0.38, height = 0.32 }) {
+    const steel = mat('#b4b7bc', { metal: 0.55, rough: 0.35 });
+    const dark = mat('#22242a', { rough: 0.45 });
+    const glassDoor = mat('#14171e', { rough: 0.15, metal: 0.2 });
+    const footH = 0.012;
+    const dials = [0.234375, 0.484375, 0.734375].map((t) =>
+      at(rodZ(0.017, 0.019, 0.02, dark, 14), width / 2 - 0.038, footH + height * t, depth / 2));
+    return group(
+      ...legs(width, depth, footH, dark, 0.04, 0.012),
+      at(box(width, height, depth, steel, { r: 0.012 }), 0, footH, 0),
+      at(box(width - 0.12, height - 0.1, 0.012, dark, { r: 0.006 }), -0.036, footH + 0.045, depth / 2),
+      at(box(width - 0.16, height - 0.17, 0.006, glassDoor, { r: 0.004 }), -0.036, footH + 0.072, depth / 2 + 0.007),
+      at(box(width - 0.16, 0.014, 0.014, steel, { r: 0.005 }), -0.036, footH + height - 0.078, depth / 2 + 0.024),
+      ...[-1, 1].map((side) => at(box(0.012, 0.012, 0.02, steel, { r: 0 }), -0.036 + side * ((width - 0.2) / 2), footH + height - 0.077, depth / 2 + 0.012)),
+      ...dials,
+    );
+  },
+
+  airFryer({ width = 0.24, depth = 0.24, height = 0.25 }) {
+    const steel = mat('#b4b7bc', { metal: 0.55, rough: 0.35 });
+    const dark = mat('#22242a', { rough: 0.45 });
+    return group(
+      at(box(width, height, depth, dark, { r: 0.045 }), 0, 0, 0),
+      at(box(width - 0.04, 0.006, depth - 0.04, mat('#343740', { metal: 0.4, rough: 0.4 }), { r: 0.003 }), 0, height - 0.002, 0),
+      at(box(width - 0.03, 0.006, 0.006, steel, { r: 0 }), 0, height * 0.52, depth / 2 - 0.001),
+      at(box(0.028, 0.095, 0.018, steel, { r: 0.006 }), 0, 0.03, depth / 2 + 0.012),
+      ...[-0.03, 0.03].map((dy) => at(box(0.018, 0.014, 0.02, dark, { r: 0 }), 0, 0.07 + dy, depth / 2)),
+    );
+  },
+
+  ovenStand({ width = 0.62, depth = 0.44, height = 0.94 }) {
+    const ovenHeight = 0.32;
+    return group(
+      builders.cabinet({ width, depth, height }),
+      at(builders.oven({ width: width - 0.08, depth: depth - 0.06, height: ovenHeight }), 0, height, 0),
+      at(builders.airFryer({}), 0, height + ovenHeight + 0.012, 0),
+    );
+  },
+
+  wallShelf({ width = 0.66, depth = 0.28, color = WHITE }) {
     const shelfTop = 0.028;
-    const spout = at(box(0.032, 0.045, 0.026, steel, { r: 0.005 }), 0.088, shelfTop + 0.155, 0);
-    spout.rotation.z = 0.42;
+    const bracket = mat(color === WHITE ? '#d5d2ca' : darker(color, 0.88), { rough: 0.6 });
     return group(
       // Wall shelf + two slim underside L-brackets at the back edge.
-      at(box(width, shelfTop, depth, mat(WHITE, { rough: 0.6 }), { r: 0.006 }), 0, 0, 0),
+      at(box(width, shelfTop, depth, mat(color, { rough: 0.6 }), { r: 0.006 }), 0, 0, 0),
       ...[-width * 0.34, width * 0.34].flatMap((x) => [
-        at(box(0.018, 0.09, 0.016, mat('#d5d2ca', { rough: 0.6 }), { r: 0 }), x, -0.09, -depth / 2 + 0.008),
-        at(box(0.018, 0.014, depth * 0.62, mat('#d5d2ca', { rough: 0.6 }), { r: 0 }), x, -0.014, -depth * 0.18),
+        at(box(0.018, 0.09, 0.016, bracket, { r: 0 }), x, -0.09, -depth / 2 + 0.008),
+        at(box(0.018, 0.014, depth * 0.62, bracket, { r: 0 }), x, -0.014, -depth * 0.18),
       ]),
-      // Electric kettle: power base, tapered stainless vessel, lid, spout, and C-handle.
-      at(cyl(0.084, 0.086, 0.022, dark, 20), 0.16, shelfTop, 0),
-      at(cyl(0.062, 0.08, 0.185, steel, 20), 0.16, shelfTop + 0.022, 0),
-      at(cyl(0.062, 0.064, 0.014, dark, 20), 0.16, shelfTop + 0.207, 0),
-      at(box(0.03, 0.01, 0.016, steel, { r: 0.003 }), 0.16, shelfTop + 0.221, 0),
+    );
+  },
+
+  kettle({ width = 0.17 }) {
+    const steel = mat('#c2c5ca', { metal: 0.58, rough: 0.32 });
+    const dark = mat('#26282e', { rough: 0.5 });
+    const spout = at(box(0.032, 0.045, 0.026, steel, { r: 0.005 }), -0.072, 0.155, 0);
+    spout.rotation.z = 0.42;
+    const g = group(
+      at(cyl(0.084, 0.086, 0.022, dark, 20), 0, 0, 0),
+      at(cyl(0.062, 0.08, 0.185, steel, 20), 0, 0.022, 0),
+      at(cyl(0.062, 0.064, 0.014, dark, 20), 0, 0.207, 0),
+      at(box(0.03, 0.01, 0.016, steel, { r: 0.003 }), 0, 0.221, 0),
       spout,
-      at(box(0.042, 0.014, 0.02, dark, { r: 0.004 }), 0.23, shelfTop + 0.175, 0),
-      at(box(0.016, 0.115, 0.022, dark, { r: 0.006 }), 0.246, shelfTop + 0.068, 0),
-      at(box(0.036, 0.014, 0.02, dark, { r: 0.004 }), 0.232, shelfTop + 0.064, 0),
-      // Matte coffee grinder/canister on the left + kraft coffee bag in the middle.
-      at(cyl(0.045, 0.048, 0.135, dark, 18), -0.19, shelfTop, 0.015),
-      at(cyl(0.046, 0.046, 0.014, steel, 18), -0.19, shelfTop + 0.135, 0.015),
-      at(box(0.084, 0.125, 0.052, mat('#cbb799', { rough: 0.9 }), { r: 0.006 }), -0.045, shelfTop, -0.016),
-      at(box(0.062, 0.048, 0.004, mat('#3d332a', { rough: 0.8 }), { r: 0 }), -0.045, shelfTop + 0.052, 0.011),
+      at(box(0.042, 0.014, 0.02, dark, { r: 0.004 }), 0.07, 0.175, 0),
+      at(box(0.016, 0.115, 0.022, dark, { r: 0.006 }), 0.086, 0.068, 0),
+      at(box(0.036, 0.014, 0.02, dark, { r: 0.004 }), 0.072, 0.064, 0),
+    );
+    if (width !== 0.17) g.scale.setScalar(width / 0.17);
+    return g;
+  },
+
+  coffeeGrinder({ width = 0.1 }) {
+    const steel = mat('#c2c5ca', { metal: 0.58, rough: 0.32 });
+    const dark = mat('#26282e', { rough: 0.5 });
+    const g = group(
+      at(cyl(0.045, 0.048, 0.135, dark, 18), 0, 0, 0),
+      at(cyl(0.046, 0.046, 0.014, steel, 18), 0, 0.135, 0),
+    );
+    if (width !== 0.1) g.scale.setScalar(width / 0.1);
+    return g;
+  },
+
+  coffeeBag({ width = 0.084 }) {
+    const g = group(
+      at(box(0.084, 0.125, 0.052, mat('#cbb799', { rough: 0.9 }), { r: 0.006 }), 0, 0, 0),
+      at(box(0.062, 0.048, 0.004, mat('#3d332a', { rough: 0.8 }), { r: 0 }), 0, 0.052, 0.027),
+    );
+    if (width !== 0.084) g.scale.setScalar(width / 0.084);
+    return g;
+  },
+
+  coffeeShelf({ width = 0.66, depth = 0.28 }) {
+    const shelfTop = 0.028;
+    return group(
+      builders.wallShelf({ width, depth }),
+      at(builders.kettle({}), 0.16, shelfTop, 0),
+      at(builders.coffeeGrinder({}), -0.19, shelfTop, 0.015),
+      at(builders.coffeeBag({}), -0.045, shelfTop, -0.016),
     );
   },
 
@@ -370,11 +447,12 @@ const builders = {
     return g;
   },
 
-  vanity({ width = 1.0, pedestal = false }) {
+  vanity({ width = 1.0, variant, pedestal = false }) {
     const mirror = new THREE.MeshStandardMaterial({ color: '#b9c7dc', roughness: 0.12, metalness: 0.9 });
     const ceramic = mat(WHITE, { rough: 0.22 });
     const chrome = mat(METAL, { rough: 0.2, metal: 0.9 });
-    if (pedestal) {
+    const isPedestal = variant ? variant === 'pedestal' : Boolean(pedestal);
+    if (isPedestal) {
       const spout = at(cyl(0.009, 0.009, 0.115, chrome, 10), 0, 1.015, -0.175);
       spout.rotation.x = Math.PI / 2.15;
       const lever = at(cyl(0.006, 0.006, 0.055, chrome, 8), 0.012, 0.93, -0.175);
@@ -415,13 +493,14 @@ const builders = {
     );
   },
 
-  toilet({ tank = true }) {
+  toilet({ variant, tank = true }) {
     const c = mat(WHITE, { rough: 0.25 });
     const bowl = at(cyl(0.19, 0.13, 0.4, c), 0, 0, 0.1);
     bowl.scale.z = 1.25;
     const lid = at(cyl(0.2, 0.2, 0.03, c), 0, 0.4, 0.1);
     lid.scale.z = 1.25;
-    return group(tank && at(box(0.38, 0.78, 0.17, c, { r: 0.03 }), 0, 0, -0.24), bowl, lid);
+    const hasTank = variant ? variant !== 'concealed' : tank !== false;
+    return group(hasTank && at(box(0.38, 0.78, 0.17, c, { r: 0.03 }), 0, 0, -0.24), bowl, lid);
   },
 
   desk({ width = 1.4, depth = 0.65, height = 0.76 }) {
@@ -654,11 +733,19 @@ export function footprint(item) {
   switch (item.type) {
     case 'rug': return item.size || [2, 1.4];
     case 'sofa': return [w || 2.2, 0.95];
+    case 'pillow': return [w || 0.38, 0.16];
     case 'armchair': return [0.92, 0.88];
-    case 'coffeeTable': return [w || 1.1, item.woodShelf ? item.depth || 0.58 : 0.58];
+    case 'coffeeTable': return [w || 1.1, item.depth || 0.58];
+    case 'cabinet': return [w || 0.62, item.depth || 0.44];
+    case 'oven': return [w || 0.54, item.depth || 0.38];
+    case 'airFryer': return [w || 0.24, item.depth || 0.24];
     case 'ovenStand': return [w || 0.62, item.depth || 0.44];
+    case 'wallShelf': return [w || 0.66, item.depth || 0.28];
+    case 'kettle': return [w || 0.17, w || 0.17];
+    case 'coffeeGrinder': return [w || 0.1, w || 0.1];
+    case 'coffeeBag': return [w || 0.084, w ? w * (0.052 / 0.084) : 0.052];
     case 'coffeeShelf': return [w || 0.66, item.depth || 0.28];
-    case 'tv': return [w || 1.7, item.wallMounted ? 0.055 : 0.4];
+    case 'tv': return [w || 1.7, isWallMounted(item) ? 0.055 : 0.4];
     case 'sideboard': return [w || 1.6, 0.42];
     case 'diningSet': return [w || 1.8, 1.9];
     case 'island': return [w || 2, 1.1];
@@ -682,6 +769,47 @@ export function footprint(item) {
     case 'bookshelf': return [w || 1, 0.32];
     case 'stairs': return [w || 1, item.depth || 2.8];
     default: return [0.6, 0.6];
+  }
+}
+
+// Top-surface height in metres above `item.y || 0` for any support piece, or null for non-supports.
+export function surfaceHeight(item) {
+  switch (item?.type) {
+    case 'cabinet': return item.height ?? 0.94;
+    case 'oven': return (item.height ?? 0.32) + 0.012;
+    case 'wallShelf': return 0.028;
+    case 'sofa':
+    case 'armchair': return 0.47;
+    case 'bed': return 0.48;
+    case 'coffeeTable': return item.height ?? 0.4;
+    case 'sideboard':
+    case 'diningSet': return 0.76;
+    case 'island': return 0.93;
+    case 'kitchen': return item.height ?? 0.9;
+    case 'fridge': return 1.92;
+    case 'nightstand': return 0.5;
+    case 'dresser': return item.height ?? 0.84;
+    case 'desk': return item.height ?? 0.76;
+    case 'bookshelf': return item.height ?? 1.8;
+    case 'wardrobe': return item.height ?? 2.1;
+    case 'glassCupboard': return item.height ?? 1.7;
+    case 'tv': return isWallMounted(item) ? null : 0.46;
+    case 'pillow':
+    case 'airFryer':
+    case 'kettle':
+    case 'coffeeGrinder':
+    case 'coffeeBag':
+    case 'rug':
+    case 'plant':
+    case 'bathtub':
+    case 'toilet':
+    case 'stairs':
+    case 'shoeRack':
+    case 'foldingDoor':
+    case 'towelRail':
+    case 'showerHead':
+    case 'showerCurtain':
+    default: return null;
   }
 }
 

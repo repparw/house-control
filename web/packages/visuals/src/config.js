@@ -29,6 +29,7 @@ export const SERVICES = {
   homekit: { name: 'Apple Home', short: 'Apple Home' },
 };
 export const FLOOR_KINDS = ['oak', 'walnut', 'tile', 'stone', 'stripedTile', 'terracottaTile'];
+export const WINDOW_SASHES = ['fixed', 'casement', 'upperSliding'];
 
 // A home on several floors lists them in "levels", lowest first: [{ id, name, wallHeight? }].
 // Rooms, furniture and openings say which one they are on with "level"; lamps and ACs are on
