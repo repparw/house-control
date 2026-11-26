@@ -81,7 +81,7 @@ export function buildHouse(config, level = config.levels[0]) {
   const openings = config.openings.filter((o) => o.level === level.id);
   const { minX, minZ, maxX, maxZ } = level.bounds;
 
-  if (level.elevation === 0) {
+  if (level.elevation === 0 && config.showPlinth !== false) {
     // Plinth the model stands on.
     // Separate the plinth from floor finishes in a low-precision depth buffer at oblique angles.
     const baseMaterial = mat("#141927", { rough: 0.9 }).clone();
@@ -92,7 +92,7 @@ export function buildHouse(config, level = config.levels[0]) {
     at(plinth, (minX + maxX) / 2, -0.305, (minZ + maxZ) / 2);
     plinth.receiveShadow = true;
     group.add(plinth);
-  } else {
+  } else if (level.elevation !== 0) {
     const slab = mat('#1d2232', { rough: 0.9 });
     for (const r of rooms) {
       const s = box(r.w + EXT_T, SLAB - 0.01, r.d + EXT_T, slab, { r: 0 });
@@ -119,6 +119,9 @@ export function buildHouse(config, level = config.levels[0]) {
   });
   const frostedGlass = mat('#e0e9e8', { rough: 0.75 });
   const frame = mat('#2c3142', { rough: 0.6 });
+  const sashFrame = mat('#363c50', { rough: 0.55 });
+  const sillLedge = mat('#d9d5cd', { rough: 0.75 });
+  const hardware = mat('#c2c7cf', { metal: 0.75, rough: 0.28 });
 
   // A wall piece running from a..b along its axis, between heights y0..y1.
   const piece = (s, a, b, y0, y1, t, materials = wallMats, parent = group) => {
@@ -131,6 +134,7 @@ export function buildHouse(config, level = config.levels[0]) {
     parent.add(m);
     return m;
   };
+  const shiftSeg = (s, offset) => ({ ...s, c: s.c + s.inside * offset });
 
   // The four sides of the floor, each with its outer walls standing and cut away.
   const sides = new Map();
@@ -171,12 +175,74 @@ export function buildHouse(config, level = config.levels[0]) {
       const { sill, head } = s.opening;
       piece(s, a, b, 0, sill, t, wallMats, parent);
       piece(s, a, b, Math.min(head, H), H, t, wallMats, parent);
-      const pane = piece(s, a, b, sill, head, 0.03, s.opening.frosted ? frostedGlass : glass, parent);
-      pane.castShadow = false;
+      // Subtle interior/exterior sill ledge gives openings architectural depth.
+      piece(shiftSeg(s, 0.015), a - 0.02, b + 0.02, sill - 0.018, sill + 0.014, t + 0.05, sillLedge, parent);
+      const glazing = s.opening.frosted ? frostedGlass : glass;
       const fw = 0.05;
       const bars = [[a, a + fw, sill, head], [b - fw, b, sill, head], [a, b, sill, sill + fw], [a, b, head - fw, head]];
-      if (s.opening.panes === 2 || b - a > 1.2) bars.push([(a + b) / 2 - fw / 2, (a + b) / 2 + fw / 2, sill, head]);
-      for (const [fa, fb, y0, y1] of bars) piece(s, fa, fb, y0, y1, 0.07, frame, parent);
+      if (s.opening.sash === 'upperSliding') {
+        const mid = (sill + head) / 2;
+        const sw = 0.024;
+        const lowerPlane = shiftSeg(s, -0.016);
+        const upperPlane = shiftSeg(s, 0.016);
+        const lowerPane = piece(lowerPlane, a + fw, b - fw, sill + fw, mid + 0.008, 0.018, glazing, parent);
+        lowerPane.castShadow = false;
+        const upperPane = piece(upperPlane, a + fw + sw, b - fw - sw, mid - 0.004, head - fw - sw, 0.018, glazing, parent);
+        upperPane.castShadow = false;
+        // Inner upper-sash surround stepped forward on its own track.
+        const upperBars = [
+          [a + fw, a + fw + sw, mid - 0.012, head - fw],
+          [b - fw - sw, b - fw, mid - 0.012, head - fw],
+          [a + fw, b - fw, mid - 0.012, mid + 0.014],
+          [a + fw, b - fw, head - fw - sw, head - fw],
+        ];
+        for (const [fa, fb, y0, y1] of upperBars) piece(upperPlane, fa, fb, y0, y1, 0.032, sashFrame, parent);
+        // Subtle lower meeting bar + brushed-metal central sash pull on the inside face.
+        piece(lowerPlane, a + fw, b - fw, mid - 0.006, mid + 0.014, 0.026, sashFrame, parent);
+        const cx = (a + b) / 2;
+        piece(shiftSeg(s, 0.042), cx - 0.045, cx + 0.045, mid - 0.008, mid + 0.012, 0.016, hardware, parent);
+      } else if (s.opening.sash === 'casement') {
+        const gap = 0.008;
+        const inset = fw + gap;
+        const sw = 0.034;
+        const sashPlane = shiftSeg(s, 0.012);
+        const stopPlane = shiftSeg(s, -0.022);
+        // Perimeter rebate stop behind the sash keeps a crisp shadow reveal without light leaks.
+        const stopBars = [
+          [a + fw, a + inset + 0.01, sill + fw, head - fw],
+          [b - inset - 0.01, b - fw, sill + fw, head - fw],
+          [a + fw, b - fw, sill + fw, sill + inset + 0.01],
+          [a + fw, b - fw, head - inset - 0.01, head - fw],
+        ];
+        for (const [fa, fb, y0, y1] of stopBars) piece(stopPlane, fa, fb, y0, y1, 0.026, frame, parent);
+        const pane = piece(sashPlane, a + inset + sw, b - inset - sw, sill + inset + sw, head - inset - sw, 0.018, glazing, parent);
+        pane.castShadow = false;
+        const sashBars = [
+          [a + inset, a + inset + sw, sill + inset, head - inset],
+          [b - inset - sw, b - inset, sill + inset, head - inset],
+          [a + inset, b - inset, sill + inset, sill + inset + sw],
+          [a + inset, b - inset, head - inset - sw, head - inset],
+        ];
+        for (const [fa, fb, y0, y1] of sashBars) piece(sashPlane, fa, fb, y0, y1, 0.052, sashFrame, parent);
+        // Casement handle (escutcheon plate + projecting stem + downward lever) on the interior latch stile.
+        const handleX = b - inset - sw / 2;
+        const midY = (sill + head) / 2;
+        piece(shiftSeg(s, 0.045), handleX - 0.011, handleX + 0.011, midY - 0.034, midY + 0.034, 0.012, hardware, parent);
+        piece(shiftSeg(s, 0.058), handleX - 0.007, handleX + 0.007, midY - 0.008, midY + 0.008, 0.026, hardware, parent);
+        piece(shiftSeg(s, 0.072), handleX - 0.008, handleX + 0.008, midY - 0.095, midY + 0.008, 0.014, hardware, parent);
+        // Two small barrel hinges on the opposite hinge stile.
+        const hingeX = a + inset + 0.006;
+        const hSpan = head - sill - inset * 2;
+        for (const f of [0.2, 0.8]) {
+          const hy = sill + inset + hSpan * f;
+          piece(shiftSeg(s, 0.044), hingeX - 0.007, hingeX + 0.007, hy - 0.024, hy + 0.024, 0.014, hardware, parent);
+        }
+      } else {
+        const pane = piece(s, a + fw, b - fw, sill + fw, head - fw, 0.024, glazing, parent);
+        pane.castShadow = false;
+        if (s.opening.panes === 2 || b - a > 1.2) bars.push([(a + b) / 2 - fw / 2, (a + b) / 2 + fw / 2, sill, head]);
+      }
+      for (const [fa, fb, y0, y1] of bars) piece(s, fa, fb, y0, y1, 0.09, frame, parent);
       continue;
     }
     if (type === 'window') continue; // a window in an interior wall is just a gap

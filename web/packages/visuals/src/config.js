@@ -89,7 +89,7 @@ export function normalize(raw) {
   const openings = (raw.openings || []).map((o, i) => {
     need(isPoint(o.from) && isPoint(o.to), `Opening #${i + 1} needs "from" and "to" points`);
     need(o.from[0] === o.to[0] || o.from[1] === o.to[1], `Opening #${i + 1} must be axis-aligned`);
-    return { type: o.type || 'door', from: o.from, to: o.to, sill: o.sill ?? 0.85, head: o.head ?? (o.type === 'window' ? 2.1 : undefined), frosted: o.frosted, panes: o.panes, level: levelOf(o, `Opening #${i + 1}`) };
+    return { type: o.type || 'door', from: o.from, to: o.to, sill: o.sill ?? 0.85, head: o.head ?? (o.type === 'window' ? 2.1 : undefined), frosted: o.frosted, panes: o.panes, sash: o.sash, level: levelOf(o, `Opening #${i + 1}`) };
   });
 
   const lights = (raw.lights || []).map((l) => {
@@ -144,6 +144,7 @@ export function normalize(raw) {
     wallHeight,
     interiorWallHeight: raw.interiorWallHeight ?? 1.25,
     camera: { azimuth: raw.camera?.azimuth ?? 34, elevation: raw.camera?.elevation ?? 47 },
+    showPlinth: raw.showPlinth !== false,
     outdoorTemp: raw.outdoorTemp ?? 27,
     levels,
     rooms,

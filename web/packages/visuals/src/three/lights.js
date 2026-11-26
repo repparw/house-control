@@ -66,6 +66,26 @@ function point(intensity, y, { shadow = true, distance = 0, x = 0, z = 0 } = {})
 // Each fixture: { parts: Mesh[], glow: Mesh[] (emissive when on), lights: Light[], hit: [w, h, d, y] }
 const fixtures = {
   ceiling(cfg, H) {
+    if (cfg.shade === 'paperDrum') {
+      const radius = 0.205;
+      const height = 0.20;
+      const bottom = H - 0.33;
+      const trim = mat('#c0af94', { rough: 0.55 });
+      const paper = glowMaterial();
+      paper.userData.offColor = '#e7d9bd';
+      paper.userData.glowScale = 0.48;
+      return {
+        parts: [
+          at(cyl(0.055, 0.055, 0.018, trim, 18), 0, H - 0.018, 0),
+          at(cyl(0.004, 0.004, 0.13, trim, 8), 0, bottom + height, 0),
+          at(cyl(radius + 0.004, radius + 0.004, 0.009, trim, 32), 0, bottom, 0),
+          at(cyl(radius + 0.004, radius + 0.004, 0.009, trim, 32), 0, bottom + height - 0.009, 0),
+        ],
+        glow: [at(cyl(radius, radius, height - 0.014, paper, 32), 0, bottom + 0.007, 0)],
+        lights: [spot(cfg.intensity ?? 20, bottom - 0.02)],
+        hit: [0.55, 0.46, 0.55, bottom + height / 2],
+      };
+    }
     const radius = cfg.radius ?? 0.27;
     const y = cfg.y ?? H - 0.14;
     return {
@@ -130,14 +150,19 @@ const fixtures = {
 
   bulkhead(cfg) {
     const y = cfg.y ?? 1.92;
-    const base = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), mat('#73787e'));
-    base.scale.set(0.115, 0.069, 0.036);
-    base.position.set(0, y, 0);
-    const lens = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), glowMaterial());
-    lens.scale.set(0.094, 0.052, 0.025);
-    lens.position.set(0, y, 0.026);
+    const housing = mat('#6f757d', { rough: 0.5, metal: 0.35 });
+    const flange = cyl(0.118, 0.122, 0.018, housing, 20);
+    flange.rotation.x = Math.PI / 2;
+    flange.scale.set(1, 1, 0.62);
+    flange.position.set(0, y, 0);
+    const bezel = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), housing);
+    bezel.scale.set(0.112, 0.068, 0.032);
+    bezel.position.set(0, y, 0.012);
+    const lens = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), glowMaterial());
+    lens.scale.set(0.094, 0.054, 0.028);
+    lens.position.set(0, y, 0.028);
     return {
-      parts: [base],
+      parts: [flange, bezel],
       glow: [lens],
       lights: [point(cfg.intensity ?? 1.6, y, { shadow: false, distance: 3.2, z: 0.065 })],
       hit: [0.38, 0.28, 0.23, y],
@@ -266,9 +291,9 @@ export class LightUnit {
     const e = this.level > 0.001 ? 0.8 + 1.7 * Math.pow(this.level, 0.7) : 0;
     for (const m of this.glow) {
       m.emissive.copy(this.color);
-      m.emissiveIntensity = e + this.hover * 0.5;
+      m.emissiveIntensity = (e + this.hover * 0.5) * (m.userData.glowScale ?? 1);
       if (this.level < 0.001) m.emissive.copy(tmp.set('#5b6b93'));
-      m.color.copy(tmp.set('#8d8f96')).lerp(this.color, Math.min(1, this.level * 2));
+      m.color.copy(tmp.set(m.userData.offColor ?? '#8d8f96')).lerp(this.color, Math.min(1, this.level * 2));
     }
     const s = 1 + this.hover * 0.14 + Math.sin(this.pulse * Math.PI) * 0.22;
     this.model.scale.setScalar(s);
